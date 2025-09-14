@@ -1,35 +1,41 @@
 use std::collections::HashMap;
 use super::RustyKV;
 
-pub struct MapRustyKV {
-    data_store: HashMap<String, String>
+pub struct MapRustyKV<T> {
+    data_store: HashMap<String, T>,
 }
 
-impl RustyKV for MapRustyKV {
+impl<T: Clone> RustyKV<T> for MapRustyKV<T> {
     fn new() -> Self {
         MapRustyKV {
             data_store: HashMap::new()
         }
     }
 
-    fn create(&mut self, key: &str, value: &str) {
+    fn create(&mut self, key: &str, value: &T)
+    where 
+        T: Clone,
+    {
         if self.data_store.contains_key(key) {
             // TODO: Handle error properly
             panic!("Key already exists");
         }
         self.data_store.insert(
             String::from(key), 
-            String::from(value)
+            value.clone(),
         );
     }
 
-    fn update(&mut self, key: &str, value: &str) {
+    fn update(&mut self, key: &str, value: &T)
+    where
+        T: Clone,
+    {
         if !self. data_store.contains_key(key) {
             panic!("Key does not exist");
         }
         self.data_store.insert(
             String::from(key),
-            String::from(value)
+            value.clone(),
         );
     }
 
@@ -37,7 +43,10 @@ impl RustyKV for MapRustyKV {
         self.data_store.remove(key).is_some()
     }
 
-    fn get(&self, key: &str) -> String {
+    fn get(&self, key: &str) -> T
+    where
+        T: Clone,
+    {
         match self.data_store.get(key) {
             Some(value) => value.clone(),
             // TODO: Handle error properly. Don't panic.
@@ -52,38 +61,38 @@ mod tests {
 
     #[test]
     fn test_create_and_get() {
-        let mut kv_store = MapRustyKV::new();
-        kv_store.create("key1", "value1");
+        let mut kv_store: MapRustyKV<String> = MapRustyKV::new();
+        kv_store.create("key1", &"value1".to_string());
         assert_eq!(kv_store.get("key1"), "value1");
     }
 
     #[test]
     #[should_panic(expected = "Key already exists")]
     fn test_create_existing_key() {
-        let mut kv_store = MapRustyKV::new();
-        kv_store.create("key1", "value1");
-        kv_store.create("key1", "value2"); // This should panic
+        let mut kv_store: MapRustyKV<String> = MapRustyKV::new();
+        kv_store.create("key1", &"value1".to_string());
+        kv_store.create("key1", &"value2".to_string()); // This should panic
     }
 
     #[test]
     fn test_update() {
-        let mut kv_store = MapRustyKV::new();
-        kv_store.create("key1", "value1");
-        kv_store.update("key1", "value2");
+        let mut kv_store: MapRustyKV<String> = MapRustyKV::new();
+        kv_store.create("key1", &"value1".to_string());
+        kv_store.update("key1", &"value2".to_string());
         assert_eq!(kv_store.get("key1"), "value2");
     }
 
     #[test]
     #[should_panic(expected = "Key does not exist")]
     fn test_update_nonexistent_key() {
-        let mut kv_store = MapRustyKV::new();
-        kv_store.update("key1", "value1"); // This should panic
+        let mut kv_store: MapRustyKV<String> = MapRustyKV::new();
+        kv_store.update("key1", &"value1".to_string()); // This should panic
     }
 
     #[test]
     fn test_delete() {
-        let mut kv_store = MapRustyKV::new();
-        kv_store.create("key1", "value1");
+        let mut kv_store: MapRustyKV<String> = MapRustyKV::new();
+        kv_store.create("key1", &"value1".to_string());
         assert!(kv_store.delete("key1"));
         assert!(!kv_store.delete("key1")); // Deleting again should return false
     }
@@ -91,7 +100,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Key does not exist")]
     fn test_get_nonexistent_key() {
-        let kv_store = MapRustyKV::new();
+        let kv_store: MapRustyKV<String> = MapRustyKV::new();
         kv_store.get("key1"); // This should panic
     }
 }
