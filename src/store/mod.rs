@@ -1,8 +1,7 @@
 pub trait RustyKV<T> {
     fn new() -> Self;
-    fn create(&mut self, key: &str, value: T);
-    fn get(&self, key: &str) -> &T;
-    fn update(&mut self, key: &str, value: T);
+    fn get(&self, key: &str) -> Option<&T>;
+    fn save(&mut self, key: &str, value: T);
     fn delete(&mut self, key: &str) -> bool;
 }
 
