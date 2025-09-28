@@ -39,5 +39,6 @@ pub trait RustyKV<T> {
 }
 
 pub mod hashmap_kv;
-
 pub use hashmap_kv::MapRustyKV;
+
+pub mod btree_kv;
