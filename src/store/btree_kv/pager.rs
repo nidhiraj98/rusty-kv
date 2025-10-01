@@ -1,6 +1,6 @@
 use std::{collections::HashMap};
 
-const PAGE_SIZE: usize = 8000; // 8kb.
+pub const PAGE_SIZE: usize = 8000; // 8kb.
 
 ///
 /// Defines the PageId of a Page of data in disk.
@@ -14,7 +14,7 @@ pub struct PageId {
 /// Implements the methods to read from and write to files in disk.
 /// 
 pub struct Pager {
-    data: HashMap<PageId, Vec<u8>>, // TODO: Currently an in-memory store. Update this to access File System.
+    data: HashMap<PageId, [u8; PAGE_SIZE]>, // TODO: Currently an in-memory store. Update this to access File System.
 }
 
 impl Pager {
@@ -34,9 +34,9 @@ impl Pager {
     /// * `id`: Page ID which needs to be fetched.
     /// 
     /// # Returns
-    /// * `Option<&Vec<u8>>` containing the Page data.
+    /// * `Option<&[u8; PAGE_SIZE]]>` containing the Page data.
     /// 
-    pub fn read_page(&self, id: PageId) -> Option<&Vec<u8>> {
+    pub fn read_page(&self, id: PageId) -> Option<&[u8; PAGE_SIZE]> {
         self.data.get(&id)
     }
 
@@ -52,7 +52,12 @@ impl Pager {
             // TODO: Handle this better.
             panic!("Page Limit Exceeded. Break data into smaller chunks.")
         }
-        self.data.insert(id, Vec::from(data));
+
+        // Create a copy
+        let mut page_data = [0u8; PAGE_SIZE];
+        page_data[..data.len()].copy_from_slice(data);
+
+        self.data.insert(id, page_data);
     }
 }
 
@@ -64,25 +69,34 @@ mod tests {
     fn test_create_and_get() {
         let mut pager = Pager::new();
 
-        let data = vec![10, 20, 30];
+        let data = [10, 20, 30];
+        let mut page = [0u8; PAGE_SIZE];
+        page[..data.len()].copy_from_slice(&data);
+        
         let id = PageId{ id: 10 };
 
-        pager.write_page(id, &data);
-        assert_eq!(&data, pager.read_page(id).unwrap());
+        pager.write_page(id, &page);
+        assert_eq!(&page, pager.read_page(id).unwrap());
     }
 
     #[test]
     fn test_create_existing_key() {
         let mut pager = Pager::new();
 
-        let data = vec![10, 20, 30];
+        let data = [10, 20, 30];
+        let mut page = [0u8; PAGE_SIZE];
+        page[..data.len()].copy_from_slice(&data);;
+
         let id = PageId{ id: 10 };
 
-        pager.write_page(id, &data);
+        pager.write_page(id, &page);
         
-        let new_data = vec![2, 10, 36];
-        pager.write_page(id, &new_data);
-        assert_eq!(&new_data, pager.read_page(id).unwrap());
+        let new_data = [2, 10, 36];
+        let mut new_page = [0u8; PAGE_SIZE];
+        new_page[..new_data.len()].copy_from_slice(&new_data);
+
+        pager.write_page(id, &new_page);
+        assert_eq!(&new_page, pager.read_page(id).unwrap());
     }
 
     #[test]
