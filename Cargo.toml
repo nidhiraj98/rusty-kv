@@ -9,3 +9,6 @@ criterion = "0.7.0"
 [[bench]]
 name = "map_rusty_bench"
 harness = false
+
+[dependencies]
+mockall = "0.13.1"
