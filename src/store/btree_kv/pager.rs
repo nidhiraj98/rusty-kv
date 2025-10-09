@@ -33,7 +33,7 @@ pub trait PagerTrait {
     /// * `id`: Page ID which needs to be fetched.
     /// 
     /// # Returns
-    /// * `Option<&[u8; PAGE_SIZE]]>` containing the Page data.
+    /// * `Option<&[u8; PAGE_SIZE]>` containing the Page data.
     /// 
     fn read_page(&self, id: PageId) -> Option<Arc<[u8; PAGE_SIZE]>>;
     ///
