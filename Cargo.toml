@@ -12,3 +12,4 @@ harness = false
 
 [dependencies]
 mockall = "0.13.1"
+tempfile = "3.23.0"
