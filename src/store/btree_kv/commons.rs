@@ -6,7 +6,7 @@ pub const PAGE_SIZE: usize = 8000; // 8kb.
 /// TODO: Data is assumed to be stored in a single file. Handle multiple
 /// files.
 ///
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct PageId(u64);
 
 impl PageId {

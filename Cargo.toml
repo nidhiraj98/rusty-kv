@@ -11,5 +11,6 @@ name = "map_rusty_bench"
 harness = false
 
 [dependencies]
+linked_hash_set = "0.1.5"
 mockall = "0.13.1"
 tempfile = "3.23.0"
