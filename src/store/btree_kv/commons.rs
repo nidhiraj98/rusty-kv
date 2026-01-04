@@ -2,7 +2,7 @@ pub const PAGE_SIZE: usize = 8000; // 8kb.
 
 ///
 /// Defines the PageId of a Page of data in disk.
-/// 
+///
 /// TODO: Data is assumed to be stored in a single file. Handle multiple
 /// files.
 ///

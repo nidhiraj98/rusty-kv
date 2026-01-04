@@ -1,5 +1,5 @@
-use rusty_kv::store::{RustyKV, MapRustyKV};
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
+use rusty_kv::store::{MapRustyKV, RustyKV};
 
 fn bench_map_kv(c: &mut Criterion) {
     let mut map_kv = MapRustyKV::new();
@@ -7,10 +7,7 @@ fn bench_map_kv(c: &mut Criterion) {
     c.bench_function("put 1000 keys", |b| {
         b.iter(|| {
             for i in 0..1000 {
-                map_kv.save(
-                    &format!("key{}", i),
-                    format!("value{}", i)
-                );
+                map_kv.save(&format!("key{}", i), format!("value{}", i));
             }
         });
     });
@@ -18,9 +15,7 @@ fn bench_map_kv(c: &mut Criterion) {
     c.bench_function("get 1000 keys", |b| {
         b.iter(|| {
             for i in 0..1000 {
-                map_kv.get(
-                    &format!("key{}", i), 
-                );
+                map_kv.get(&format!("key{}", i));
             }
         });
     });
@@ -28,9 +23,7 @@ fn bench_map_kv(c: &mut Criterion) {
     c.bench_function("delete 1000 keys", |b| {
         b.iter(|| {
             for i in 0..1000 {
-                map_kv.delete(
-                    &format!("key{}", i), 
-                );
+                map_kv.delete(&format!("key{}", i));
             }
         });
     });

@@ -42,19 +42,19 @@ impl<T: Eq + Hash + Clone> ICachePolicyEngine<T> for LRUCachePolicyEngine<T> {
 
 pub enum EvictionPolicy {
     LRU,
-    LFU
+    LFU,
 }
 
 pub struct CachePolicyEngineFactory {}
 
 impl CachePolicyEngineFactory {
     pub fn get_engine<T: 'static + Eq + Hash + Clone>(
-        eviction_policy: EvictionPolicy, 
-        capacity: usize
+        eviction_policy: EvictionPolicy,
+        capacity: usize,
     ) -> Box<dyn ICachePolicyEngine<T>> {
         match eviction_policy {
             EvictionPolicy::LRU => Box::new(LRUCachePolicyEngine::new(capacity)),
-            EvictionPolicy::LFU => panic!("Not yet implemented. Use LRU")
+            EvictionPolicy::LFU => panic!("Not yet implemented. Use LRU"),
         }
     }
 }

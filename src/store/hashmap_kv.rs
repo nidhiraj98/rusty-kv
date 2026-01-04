@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use super::RustyKV;
+use std::collections::HashMap;
 
 ///
 /// A simple in-memory key-value store using a HashMap.
@@ -10,27 +10,27 @@ pub struct MapRustyKV<T> {
 
 ///
 /// Implementation of the RustyKV trait for MapRustyKV.
-/// 
+///
 impl<T> RustyKV<T> for MapRustyKV<T> {
     ///
     /// Creates a new instance of the key-value store.
-    /// 
+    ///
     /// # Examples
     /// let kv_store: MapRustyKV<String> = MapRustyKV::new();
-    /// 
+    ///
     fn new() -> Self {
         MapRustyKV {
-            data_store: HashMap::new()
+            data_store: HashMap::new(),
         }
     }
 
     ///
     /// Saves a key-value pair to the store. If the key already exists, its value is updated.
-    /// 
+    ///
     /// # Arguments
     /// * `key` - A string slice that holds the key.
     /// * `value` - The value to be associated with the key.
-    /// 
+    ///
     /// # Examples
     /// let mut kv_store: MapRustyKV<String> = MapRustyKV::new();
     /// kv_store.save("key1", "value1".to_string());
@@ -41,13 +41,13 @@ impl<T> RustyKV<T> for MapRustyKV<T> {
 
     ///
     /// Deletes a key-value pair from the store.
-    /// 
+    ///
     /// # Arguments
     /// * `key` - A string slice that holds the key to be deleted.
-    /// 
+    ///
     /// # Returns
     /// * `true` if the key was found and deleted, `false` otherwise.
-    /// 
+    ///
     /// # Examples
     /// let mut kv_store: MapRustyKV<String> = MapRusty
     /// kv_store.save("key1", "value1".to_string());
@@ -60,13 +60,13 @@ impl<T> RustyKV<T> for MapRustyKV<T> {
 
     ///
     /// Retrieves the value associated with a given key.
-    /// 
+    ///
     /// # Arguments
     /// * `key` - A string slice that holds the key to be retrieved.
-    /// 
+    ///
     /// # Returns
     /// * `Some(&T)` if the key exists, `None` otherwise.
-    /// 
+    ///
     /// # Examples
     /// let mut kv_store: MapRustyKV<String> = MapRustyKV::new();
     /// kv_store.save("key1", "value1".to_string());

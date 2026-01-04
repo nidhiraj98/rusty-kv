@@ -1,11 +1,12 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
-use std::io::{Error};
-use std::ops::Deref;
-use crate::store::btree_kv::{
-    cache_policy_engine::{CachePolicyEngineFactory, ICachePolicyEngine, EvictionPolicy},
-    commons::{PageId, PAGE_SIZE},
-    disk_manager::DiskManager};
 use crate::store::btree_kv::frame::{Frame, FrameHandler, FrameMetadata};
+use crate::store::btree_kv::{
+    cache_policy_engine::{CachePolicyEngineFactory, EvictionPolicy, ICachePolicyEngine},
+    commons::{PAGE_SIZE, PageId},
+    disk_manager::DiskManager,
+};
+use std::io::Error;
+use std::ops::Deref;
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 pub struct BufferManager {
     // Capacity of the buffer pool. In bytes.
@@ -32,20 +33,19 @@ impl BufferManager {
     pub fn new_with_path(size: usize, path: &Path) -> Result<Self, Error> {
         let pool_slots = size / PAGE_SIZE;
         match DiskManager::new(path) {
-            Ok(disk_manager) => {
-                Ok(BufferManager {
-                    capacity: size,
-                    disk_manager,
-                    pool: vec![Frame::default(); pool_slots],
-                    pool_metadata: vec![FrameMetadata::default(); pool_slots],
-                    pool_lookup: HashMap::new(),
-                    cache_policy_engine: CachePolicyEngineFactory::get_engine(EvictionPolicy::LRU, pool_slots),
-                    vacant_slots: (0..pool_slots).collect(),
-                })
-            }
-            Err(error) => {
-                Err(error)
-            }
+            Ok(disk_manager) => Ok(BufferManager {
+                capacity: size,
+                disk_manager,
+                pool: vec![Frame::default(); pool_slots],
+                pool_metadata: vec![FrameMetadata::default(); pool_slots],
+                pool_lookup: HashMap::new(),
+                cache_policy_engine: CachePolicyEngineFactory::get_engine(
+                    EvictionPolicy::LRU,
+                    pool_slots,
+                ),
+                vacant_slots: (0..pool_slots).collect(),
+            }),
+            Err(error) => Err(error),
         }
     }
 
@@ -85,7 +85,7 @@ impl BufferManager {
         // Return the page.
         Ok(FrameHandler::new(
             &mut self.pool[frame_index],
-            &mut self.pool_metadata[frame_index]
+            &mut self.pool_metadata[frame_index],
         ))
     }
 
@@ -119,20 +119,20 @@ impl BufferManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use std::env;
+    use std::fs;
 
     #[test]
     fn test_buffer_pool_creation() {
         let temp_dir = env::temp_dir().join("rusty_kv_test_creation");
         fs::create_dir_all(&temp_dir).unwrap();
         let test_file = temp_dir.join("test.db");
-        
+
         let bpm = BufferManager::new_with_path(16000, &test_file).unwrap();
         assert_eq!(bpm.capacity, 16000);
         assert_eq!(bpm.pool.len(), 2); // 16000 / 8000 = 2 slots
         assert_eq!(bpm.vacant_slots.len(), 2);
-        
+
         let _ = fs::remove_dir_all(&temp_dir);
     }
 
@@ -141,15 +141,15 @@ mod tests {
         let temp_dir = env::temp_dir().join("rusty_kv_test_miss");
         fs::create_dir_all(&temp_dir).unwrap();
         let test_file = temp_dir.join("test.db");
-        
+
         let mut bpm = BufferManager::new_with_path(8000, &test_file).unwrap();
         let page_id = PageId::new(0);
-        
+
         let result = bpm.get(page_id);
         assert!(result.is_ok());
         assert!(bpm.pool_lookup.contains_key(&page_id));
         assert_eq!(bpm.vacant_slots.len(), 0);
-        
+
         let _ = fs::remove_dir_all(&temp_dir);
     }
 
@@ -158,19 +158,19 @@ mod tests {
         let temp_dir = env::temp_dir().join("rusty_kv_test_hit");
         fs::create_dir_all(&temp_dir).unwrap();
         let test_file = temp_dir.join("test.db");
-        
+
         let mut bpm = BufferManager::new_with_path(8000, &test_file).unwrap();
         let page_id = PageId::new(0);
-        
+
         // First access - cache miss
         let _frame1 = bpm.get(page_id).unwrap();
-        
+
         // Second access - cache hit
         let _frame2 = bpm.get(page_id).unwrap();
-        
+
         assert!(bpm.pool_lookup.contains_key(&page_id));
         assert_eq!(bpm.vacant_slots.len(), 0);
-        
+
         let _ = fs::remove_dir_all(&temp_dir);
     }
 
@@ -179,16 +179,16 @@ mod tests {
         let temp_dir = env::temp_dir().join("rusty_kv_test_eviction");
         fs::create_dir_all(&temp_dir).unwrap();
         let test_file = temp_dir.join("test.db");
-        
+
         let mut bpm = BufferManager::new_with_path(8000, &test_file).unwrap(); // Only 1 slot
-        
+
         let page1 = PageId::new(0);
         let page2 = PageId::new(1);
-        
+
         // Fill the buffer pool
         let _frame1 = bpm.get(page1).unwrap();
         assert!(bpm.pool_lookup.contains_key(&page1));
-        
+
         // This should trigger eviction
         let _frame2 = bpm.get(page2).unwrap();
         assert!(bpm.pool_lookup.contains_key(&page2));

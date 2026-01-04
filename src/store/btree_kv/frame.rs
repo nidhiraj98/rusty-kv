@@ -1,6 +1,6 @@
+use crate::store::btree_kv::commons::{PAGE_SIZE, PageId};
 use std::ops::Deref;
 use std::sync::Arc;
-use crate::store::btree_kv::commons::{PageId, PAGE_SIZE};
 
 ///
 /// Frame should only contain the data since we'd like to
@@ -30,7 +30,7 @@ impl Default for FrameMetadata {
     fn default() -> Self {
         FrameMetadata {
             page_id: None,
-            is_dirty: false
+            is_dirty: false,
         }
     }
 }
@@ -50,7 +50,7 @@ impl<'a> FrameHandler<'a> {
     pub(crate) fn new(frame: &'a mut Frame, frame_metadata: &'a mut FrameMetadata) -> Self {
         FrameHandler {
             frame,
-            frame_metadata
+            frame_metadata,
         }
     }
 
@@ -115,10 +115,7 @@ mod tests {
         let mut frame = Frame::default();
         let mut frame_metadata = FrameMetadata::default();
 
-        let mut frame_handler = FrameHandler::new(
-            &mut frame,
-            &mut frame_metadata
-        );
+        let mut frame_handler = FrameHandler::new(&mut frame, &mut frame_metadata);
 
         let new_data = [100u8; PAGE_SIZE];
         frame_handler.set_data(new_data);
