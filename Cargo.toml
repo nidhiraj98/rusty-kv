@@ -12,5 +12,7 @@ harness = false
 
 [dependencies]
 linked_hash_set = "0.1.5"
-mockall = "0.13.1"
 tempfile = "3.23.0"
+
+[workspace.metadata.marker.lints]
+marker_lints = { git = "https://github.com/rust-marker/marker" }
