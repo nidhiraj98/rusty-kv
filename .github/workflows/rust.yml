@@ -20,7 +20,5 @@ jobs:
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
-    - name: Linter
-      uses: rust-marker/marker@v0.4.3
     - name: Formatting
       uses: actions-rust-lang/rustfmt@v1.1.2

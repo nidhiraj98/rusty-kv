@@ -1,5 +1,3 @@
-cargo-features = ["edition2024"]
-
 [package]
 name = "rusty-kv"
 version = "0.1.0"
@@ -15,6 +13,3 @@ harness = false
 [dependencies]
 linked_hash_set = "0.1.5"
 tempfile = "3.23.0"
-
-[workspace.metadata.marker.lints]
-marker_lints = { git = "https://github.com/rust-marker/marker" }
