@@ -2,9 +2,7 @@ use crate::store::btree_kv::helpers::byte_ordering::cmp_le_bytes;
 use crate::store::btree_kv::commons::PAGE_SIZE;
 use std::cmp::Ordering;
 use std::mem::size_of;
-use crate::store::btree_kv::constants::page_constants::ROW_HEADER_SIZE;
-use crate::store::btree_kv::helpers::row_helper::btree_row;
-
+use crate::store::btree_kv::constants::page_constants::{KEY_SIZE_OFFSET, KEY_SIZE_SIZE, ROW_HEADER_SIZE, VALUE_SIZE_OFFSET, VALUE_SIZE_SIZE};
 // TODO: Replace unwrap() with proper error handling.
 
 // Header Sizes
@@ -119,6 +117,199 @@ mod tests_page_header {
         assert_eq!(header.get_slot_count(), 10);
         header.increase_slot_count(20);
         assert_eq!(header.get_slot_count(), 30);
+    }
+}
+
+///
+/// View representing a B-Tree row.
+///
+struct BTreeRow {
+    offset: usize,
+}
+
+impl BTreeRow {
+    ///
+    /// Creates an instance of B-Tree row.
+    /// # Arguments:
+    /// * `offset`: Offset for the first element in the row.
+    ///
+    pub fn from(offset: usize) -> Self {
+        Self { offset }
+    }
+
+    ///
+    /// Fetches the size of the key stored in the row.
+    /// # Arguments:
+    /// * `data`: Byte array containing the row header bytes. The byte array should be
+    ///           at least ROW_HEADER_SIZE long.
+    /// # Returns:
+    /// * `usize`: Size of the key.
+    ///
+    pub fn get_key_size(&self, data: &[u8]) -> usize {
+        u16::from_le_bytes(
+            data[self.offset + KEY_SIZE_OFFSET..self.offset + KEY_SIZE_OFFSET + KEY_SIZE_SIZE]
+                .try_into()
+                .unwrap(),
+        ) as usize
+    }
+
+    ///
+    /// Sets the size of the key in the header.
+    /// # Arguments:
+    /// * `data`: Byte array containing the row header bytes. The byte array should be
+    ///           atleast ROW_HEADER_SIZE long.
+    /// * `key_size`: Size of the key to be set on the header.
+    ///
+    fn set_key_size(&mut self, key_size: u16, data: &mut [u8]) {
+        data[self.offset + KEY_SIZE_OFFSET..self.offset + KEY_SIZE_OFFSET + KEY_SIZE_SIZE]
+            .copy_from_slice(&key_size.to_le_bytes());
+    }
+
+    ///
+    /// Fetches the size of the value stored in the row.
+    /// # Arguments:
+    /// * `data`: Byte array containing the row header bytes. The byte array should be
+    ///           atleast ROW_HEADER_SIZE long.
+    /// # Returns:
+    /// * `usize`: Size of the value.
+    ///
+    pub fn get_value_size(&self, data: &[u8]) -> usize {
+        u16::from_le_bytes(
+            data[self.offset + VALUE_SIZE_OFFSET..self.offset + VALUE_SIZE_OFFSET + VALUE_SIZE_SIZE]
+                .try_into()
+                .unwrap(),
+        ) as usize
+    }
+
+    ///
+    /// Sets the size of the value in the header.
+    /// # Arguments:
+    /// * `data`: Byte array containing the row header bytes. The byte array should be
+    ///           atleast ROW_HEADER_SIZE long.
+    /// * `value_size`: Size of the value to be set on the header.
+    ///
+    fn set_value_size(&mut self, value_size: u16, data: &mut [u8]) {
+        data[self.offset + VALUE_SIZE_OFFSET..self.offset + VALUE_SIZE_OFFSET + VALUE_SIZE_SIZE]
+            .copy_from_slice(&value_size.to_le_bytes());
+    }
+
+    ///
+    /// Fetches the bytes representing the key in the row.
+    /// # Arguments:
+    /// * `data`: A byte array representing the row. The byte array should contain both the row
+    ///           header and the data.
+    /// # Returns:
+    /// * `&[u8]`: Byte array representing the key.
+    ///
+    pub fn get_key<'a>(&self, data: &'a [u8]) -> &'a [u8] {
+        let key_size = self.get_key_size(data);
+        &data[self.offset + ROW_HEADER_SIZE..self.offset + ROW_HEADER_SIZE + key_size]
+    }
+
+    ///
+    /// Sets the key in the row.
+    /// # Arguments:
+    /// * `data`: A byte array representing the row. The byte array should contain both the row
+    ///           header and the data.
+    /// * `key`: A byte array representing the key to be set in the row.
+    ///
+    pub fn set_key(&mut self, key: &[u8], data: &mut [u8]) {
+        let key_size = key.len();
+        self.set_key_size(key_size as u16, data);
+        data[self.offset + ROW_HEADER_SIZE..self.offset + ROW_HEADER_SIZE + key_size]
+            .copy_from_slice(key);
+    }
+
+    ///
+    /// Fetches the bytes representing the value in the row.
+    /// # Arguments:
+    /// * `data`: A byte array representing the row. The byte array should contain both the row
+    ///           header and the data.
+    /// # Returns:
+    /// * `&[u8]`: Byte array representing the value.
+    ///
+    pub fn get_value<'a>(&self, data: &'a [u8]) -> &'a [u8] {
+        let key_size = self.get_key_size(data);
+        let value_size = self.get_value_size(data);
+        &data[self.offset + ROW_HEADER_SIZE + key_size..self.offset + ROW_HEADER_SIZE + key_size + value_size]
+    }
+
+    ///
+    /// Sets the value in the row.
+    /// # Arguments:
+    /// * `data`: A byte array representing the row. The byte array should contain both the row
+    ///           header and the data.
+    /// * `value`: A byte array representing the value to be set in the row.
+    ///
+    pub fn set_value(&mut self, value: &[u8], data: &mut [u8]) {
+        let key_size = self.get_key_size(data);
+        let value_size = value.len();
+        self.set_value_size(value_size as u16, data);
+        data[self.offset + ROW_HEADER_SIZE + key_size..self.offset + ROW_HEADER_SIZE + key_size + value_size]
+            .copy_from_slice(value);
+    }
+
+    ///
+    /// Fetches the slot size of the data array.
+    /// # Arguments:
+    /// * `data`: Byte array representing the row.
+    /// # Returns:
+    /// * `usize`: Size of the data stored in the row.
+    ///
+    pub(crate) fn get_size(&self, data: &[u8]) -> usize {
+        self.get_key_size(data) + self.get_value_size(data) + ROW_HEADER_SIZE
+    }
+}
+
+#[cfg(test)]
+mod tests_row_header {
+    use super::*;
+    use crate::store::btree_kv::constants::page_constants::{KEY_SIZE_OFFSET, KEY_SIZE_SIZE,
+                                                            ROW_HEADER_SIZE, VALUE_SIZE_OFFSET,
+                                                            VALUE_SIZE_SIZE};
+
+    #[test]
+    fn test_row_updates_in_place() {
+        const KEY: [u8; 2] = 15u16.to_le_bytes();
+        const VALUE: [u8; 2] = 20u16.to_le_bytes();
+
+        let mut row = [0u8; KEY.len() + VALUE.len() + ROW_HEADER_SIZE];
+        let mut btree_row = BTreeRow::from(0);
+
+        btree_row.set_key(&KEY, &mut row);
+        btree_row.set_value(&VALUE, &mut row);
+
+        // Value from the view
+        assert_eq!(btree_row.get_key_size(&row), KEY.len());
+        assert_eq!(btree_row.get_value_size(&row), VALUE.len());
+        assert_eq!(btree_row.get_key(&row), KEY);
+        assert_eq!(btree_row.get_value(&row), VALUE);
+
+        // Value from the byte array
+        assert_eq!(
+            u16::from_le_bytes(
+                (&row[KEY_SIZE_OFFSET..KEY_SIZE_OFFSET + KEY_SIZE_SIZE])
+                    .try_into()
+                    .unwrap()
+            ),
+            KEY.len() as u16
+        );
+        assert_eq!(
+            u16::from_le_bytes(
+                (&row[VALUE_SIZE_OFFSET..VALUE_SIZE_OFFSET + VALUE_SIZE_SIZE])
+                    .try_into()
+                    .unwrap()
+            ),
+            VALUE.len() as u16
+        );
+        assert_eq!(
+            &row[ROW_HEADER_SIZE..ROW_HEADER_SIZE + KEY.len()],
+            KEY
+        );
+        assert_eq!(
+            &row[ROW_HEADER_SIZE + KEY.len()..ROW_HEADER_SIZE + KEY.len() + VALUE.len()],
+            VALUE
+        );
     }
 }
 
@@ -292,11 +483,8 @@ impl<'a> BTreeBodyData<'a> {
 
         while count < header.get_slot_count() as usize {
             assert!(index + ROW_HEADER_SIZE <= row_data_plus_free.len());
-            let header_bytes = &row_data_plus_free[index..index + ROW_HEADER_SIZE];
-            let key_size = btree_row::get_key_size(header_bytes);
-            let value_size = btree_row::get_value_size(header_bytes);
-
-            index += ROW_HEADER_SIZE + key_size + value_size;
+            let btree_row = BTreeRow::from(index);
+            index += btree_row.get_size(data);
             count += 1;
         }
 
@@ -318,7 +506,7 @@ impl<'a> BTreeBodyData<'a> {
     /// # Returns:
     /// * `Result<&[u8], String>`: Result containing the row data if found. If not, the reason.
     ///
-    pub(crate) fn get(&'a self, key: &[u8], header: &BTreePageHeader) -> Result<&'a [u8], String> {
+    pub(crate) fn get(&self, key: &[u8], header: &BTreePageHeader) -> Result<&[u8], String> {
         match self.search(key, 0, header.get_slot_count() as usize) {
             Ok(index) => {
                 let row_offset =
@@ -327,10 +515,8 @@ impl<'a> BTreeBodyData<'a> {
                             .try_into()
                             .unwrap())
                         as usize;
-                let header_bytes = &self.data[row_offset..row_offset + ROW_HEADER_SIZE];
-                let value_size = btree_row::get_value_size(header_bytes);
-                let key_size = btree_row::get_key_size(header_bytes);
-                let slot_size = key_size + value_size + ROW_HEADER_SIZE;
+                let btree_row = BTreeRow::from(row_offset);
+                let slot_size = btree_row.get_size(self.data);
                 Ok(&self.data[row_offset..row_offset + slot_size])
             }
             Err(index) => Err(String::from("The key doesn't exist")),
@@ -343,7 +529,7 @@ impl<'a> BTreeBodyData<'a> {
     /// * `value`: Value to be updated
     /// * `slot_map_index`: Index of the slot_map element which points to the row.
     /// # Returns:
-    /// * `Result<&[u8], String>`: Result containing the row data if updated. If not, the reason.
+    /// * `Result<(), String>`: Void result if the updation was successful. Reason otherwise.
     /// # Impl Note:
     ///   If the value doesn't match the size of the existing value present in the row,
     ///   the updation will be unsuccessful, with a corresponding error.
@@ -352,14 +538,14 @@ impl<'a> BTreeBodyData<'a> {
     ///       worth it? It also improves the method signature. Passing the slot_map_index isn't
     ///       ideal.
     ///
-    pub(crate) fn update(&mut self, value: &[u8], slot_map_index: usize) -> Result<&[u8], String> {
+    pub(crate) fn update(&mut self, value: &[u8], slot_map_index: usize) -> Result<(), String> {
         let row_offset = u16::from_le_bytes(
             self.slot_map.get_slot_map_element(slot_map_index, self.data)
                 .try_into()
                 .unwrap(),
         ) as usize;
-        let header_bytes = &self.data[row_offset..row_offset + ROW_HEADER_SIZE];
-        let value_size = btree_row::get_value_size(header_bytes);
+        let mut btree_row = BTreeRow::from(row_offset);
+        let value_size = btree_row.get_value_size(self.data);
 
         // Validate that the new value fits in the existing space.
         // TODO: If the new value is smaller, we can fit in the new value and update the value
@@ -371,10 +557,8 @@ impl<'a> BTreeBodyData<'a> {
         }
 
         // Re-Use the existing slot.
-        let key_size = btree_row::get_key_size(header_bytes);
-        let slot_size = key_size + value_size + ROW_HEADER_SIZE;
-        btree_row::set_value(&mut self.data[row_offset..row_offset + slot_size], value);
-        Ok(&self.data[row_offset..row_offset + slot_size])
+        btree_row.set_value(value, self.data);
+        Ok(())
     }
 
     ///
@@ -385,9 +569,9 @@ impl<'a> BTreeBodyData<'a> {
     /// * `slot_map_index`: The index of the slot map element in the slot map where the new offset
     ///                     can be inserted.
     /// # Returns:
-    /// * `Result<&[u8], String>`: Result containing the row data if inserted. If not, the reason.
+    /// * `Result<(), String>`: Void result if the insertion was successful. Reason otherwise.
     ///
-    pub(crate) fn insert(&mut self, key: &[u8], value: &[u8], slot_map_index: usize) -> Result<&[u8], String> {
+    pub(crate) fn insert(&mut self, key: &[u8], value: &[u8], slot_map_index: usize) -> Result<(), String> {
         // Insert element in row data.
         let key_size = key.len();
         let value_size = value.len();
@@ -399,24 +583,17 @@ impl<'a> BTreeBodyData<'a> {
         }
 
         let (new_row_start, _) = self.free_space.allocate_row_space(slot_size);
-
-        let mut header_bytes = &mut self.data[new_row_start..new_row_start + ROW_HEADER_SIZE];
-        btree_row::set_key_size(&mut header_bytes, key_size as u16);
-        btree_row::set_value_size(&mut header_bytes, value_size as u16);
-
-        let mut slot_bytes = &mut self.data[new_row_start..new_row_start + slot_size];
-
-        btree_row::set_key(&mut slot_bytes, key);
-        btree_row::set_value(&mut slot_bytes, value);
+        let mut btree_row = BTreeRow::from(new_row_start);
+        btree_row.set_key(key, self.data);
+        btree_row.set_value(value, self.data);
 
         // Insert offset in slot map
-
         self.slot_map.insert_slot_element(&mut self.free_space,
                                           &mut self.data,
                                           new_row_start as u16,
                                           slot_map_index);
 
-        Ok(&self.data[new_row_start..new_row_start + slot_size])
+        Ok(())
     }
 
     ///
@@ -437,12 +614,8 @@ impl<'a> BTreeBodyData<'a> {
                     .try_into()
                     .unwrap())
                 as usize;
-        let header_bytes = &self.data[row_offset..row_offset + ROW_HEADER_SIZE];
-        let key_size = btree_row::get_key_size(header_bytes);
-        let value_size = btree_row::get_value_size(header_bytes);
-        let slot_size = key_size + value_size + ROW_HEADER_SIZE;
-
-        let key_pivot = btree_row::get_key(&self.data[row_offset..row_offset + slot_size]);
+        let btree_row = BTreeRow::from(row_offset);
+        let key_pivot = btree_row.get_key(self.data);
 
         match cmp_le_bytes(key, key_pivot) {
             Ordering::Equal => Ok(pivot_index),
@@ -456,6 +629,9 @@ impl<'a> BTreeBodyData<'a> {
 /// View representing the row.
 ///
 struct RowResult<'r> {
+    ///
+    /// Byte array for the row data
+    ///
     data: &'r [u8],
 }
 
@@ -468,6 +644,11 @@ impl<'r> RowResult<'r> {
     /// * `Self`: An instance of RowResult.
     ///
     fn from(data: &'r [u8]) -> Self {
+        let btree_row = BTreeRow::from(0);
+
+        // Verify that the data passed only contains the row.
+        assert_eq!(data.len(), btree_row.get_size(data));
+
         RowResult { data }
     }
 
@@ -477,7 +658,8 @@ impl<'r> RowResult<'r> {
     /// * `&[u8]`: Key of the row.
     ///
     fn get_key(&self) -> &[u8] {
-        let key_size = btree_row::get_key_size(&self.data);
+        let btree_row = BTreeRow::from(0);
+        let key_size = btree_row.get_key_size(&self.data);
         &self.data[ROW_HEADER_SIZE..ROW_HEADER_SIZE + key_size]
     }
 
@@ -487,8 +669,9 @@ impl<'r> RowResult<'r> {
     /// * `&[u8]`: Value of the row.
     ///
     fn get_value(&self) -> &[u8] {
-        let key_size = btree_row::get_key_size(&self.data);
-        let value_size = btree_row::get_value_size(&self.data);
+        let btree_row = BTreeRow::from(0);
+        let key_size = btree_row.get_key_size(&self.data);
+        let value_size = btree_row.get_value_size(&self.data);
         &self.data[ROW_HEADER_SIZE + key_size..ROW_HEADER_SIZE + key_size + value_size]
     }
 }
@@ -516,7 +699,7 @@ impl<'a> BTreePage<'a> {
     /// # Returns:
     /// * `Option<RowResult>`: Ok(RowResult) if the row is present. None if not.
     ///
-    pub fn get(&'a self, key: &[u8]) -> Option<RowResult<'a>> {
+    pub fn get(&self, key: &[u8]) -> Option<RowResult<'_>> {
         match self.body.get(key, &self.header) {
             Err(..) => None,
             Ok(row) => Some(RowResult::from(row)),
@@ -530,10 +713,10 @@ impl<'a> BTreePage<'a> {
     /// * `key`: Key of the row to insert.
     /// * `value`: Value of the row to insert.
     /// # Returns:
-    /// * `Result<RowResult, String>`: RowResult if the row is inserted. If not, the reason.
+    /// * `Result<(), String>`: Void if the row is inserted. If not, the reason.
     ///
-    pub fn save(&mut self, key: &[u8], value: &[u8]) -> Result<RowResult<'_>, String> {
-        let row_result = match self
+    pub fn save(&mut self, key: &[u8], value: &[u8]) -> Result<(), String> {
+        match self
             .body
             .search(key, 0, self.header.get_slot_count() as usize)
         {
@@ -547,11 +730,6 @@ impl<'a> BTreePage<'a> {
                 self.header.increase_slot_count(1);
                 result
             }
-        };
-
-        match row_result {
-            Err(error) => Err(error),
-            Ok(row) => Ok(RowResult::from(row)),
         }
     }
 }
