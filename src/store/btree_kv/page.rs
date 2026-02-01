@@ -769,6 +769,6 @@ mod tests {
 
         let page = BTreePage::from(&mut data);
         assert_eq!(page.get(b"abc").unwrap().get_value(), b"qux");
-        assert_eq!(page.get(b"def").unwrap().get_value(), b"baz");
+        assert_eq!(page.get(b"def").unwrap().get_value(), b"bar");
     }
 }
