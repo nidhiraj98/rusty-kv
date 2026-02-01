@@ -675,41 +675,36 @@ impl<'a> BTreeBodyData<'a> {
     ///
     /// Removes a key from the BTree Page.
     /// # Arguments:
-    /// * `key`: Key to be removed.
     /// * `header`: A reference to the Page header for this page.
+    /// * `slot_map_index`: The index of the element to delete in the slot map.
     ///
     /// # Returns:
     /// * `Result<(), String>`: Void if the item was successfully deleted. Reason otherwise.
     ///
     pub(crate) fn remove(
         &mut self,
-        key: &[u8],
         header: &mut BTreePageHeader,
+        slot_map_index: usize,
     ) -> Result<(), String> {
-        let result = self.search(key, 0, header.get_slot_count() as usize);
-        if result.is_ok() {
-            // The page contains an entry with the key. Delete it.
-            let slot_map_index = result.unwrap();
-
-            // 1. Find the row offset of the entry.
-            let row_offset = u16::from_le_bytes(
-                self.slot_map
-                    .get_slot_map_element(slot_map_index, &self.data)
-                    .try_into()
-                    .unwrap(),
-            ) as usize;
-
-            // 2. Delete the entry from the data.
-            let mut btree_row = BTreeRow::from(row_offset);
-            btree_row.clear_row(self.data);
-
-            // 3. Delete the mapping in slot map.
+        // 1. Find the row offset of the entry.
+        let row_offset = u16::from_le_bytes(
             self.slot_map
-                .delete_slot_map_element(slot_map_index, self.data, &mut self.free_space);
+                .get_slot_map_element(slot_map_index, &self.data)
+                .try_into()
+                .unwrap(),
+        ) as usize;
 
-            // 4. Update slot count in header.
-            header.decrease_slot_count(1);
-        }
+        // 2. Delete the entry from the data.
+        let mut btree_row = BTreeRow::from(row_offset);
+        btree_row.clear_row(self.data);
+
+        // 3. Delete the mapping in slot map.
+        self.slot_map
+            .delete_slot_map_element(slot_map_index, self.data, &mut self.free_space);
+
+        // 4. Update slot count in header.
+        header.decrease_slot_count(1);
+
         Ok(())
     }
 
@@ -856,7 +851,13 @@ impl<'a> BTreePage<'a> {
     /// * `Result<(), String>`: Ok() if the deletion succeeded. Err(reason) otherwise.
     ///
     pub fn delete(&mut self, key: &[u8]) -> Result<(), String> {
-        self.body.remove(key, &mut self.header)
+        let result = self
+            .body
+            .search(key, 0, self.header.get_slot_count() as usize);
+        if result.is_ok() {
+            return self.body.remove(&mut self.header, result.unwrap());
+        }
+        Ok(())
     }
 }
 
