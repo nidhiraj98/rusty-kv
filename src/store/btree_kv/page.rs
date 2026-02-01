@@ -422,7 +422,7 @@ impl BTreePageSlotMap {
         &mut self,
         index: usize,
         data: &mut [u8],
-        free_space: &mut BTreePageFreeSpace
+        free_space: &mut BTreePageFreeSpace,
     ) {
         let new_start = self.start + SLOT_MAP_ELEMENT_SIZE;
         // 1. Shift the elements right by one index.
@@ -681,7 +681,11 @@ impl<'a> BTreeBodyData<'a> {
     /// # Returns:
     /// * `Result<(), String>`: Void if the item was successfully deleted. Reason otherwise.
     ///
-    pub(crate) fn remove(&mut self, key: &[u8], header: &mut BTreePageHeader) -> Result<(), String> {
+    pub(crate) fn remove(
+        &mut self,
+        key: &[u8],
+        header: &mut BTreePageHeader,
+    ) -> Result<(), String> {
         let result = self.search(key, 0, header.get_slot_count() as usize);
         if result.is_ok() {
             // The page contains an entry with the key. Delete it.
@@ -700,11 +704,8 @@ impl<'a> BTreeBodyData<'a> {
             btree_row.clear_row(self.data);
 
             // 3. Delete the mapping in slot map.
-            self.slot_map.delete_slot_map_element(
-                slot_map_index,
-                self.data,
-                &mut self.free_space
-            );
+            self.slot_map
+                .delete_slot_map_element(slot_map_index, self.data, &mut self.free_space);
 
             // 4. Update slot count in header.
             header.decrease_slot_count(1);
