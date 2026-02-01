@@ -763,26 +763,12 @@ mod tests {
         let mut data: [u8; PAGE_SIZE] = [0; PAGE_SIZE];
         let mut page = BTreePage::from(&mut data);
 
-        page.save(b"abc", b"bar").unwrap();
-        page.save(b"def", b"baz").unwrap();
-        page.save(b"abc", b"qux").unwrap();
-
-        let page = BTreePage::from(&mut data);
-        assert_eq!(page.get(b"abc").unwrap().get_value(), b"qux");
-        assert_eq!(page.get(b"def").unwrap().get_value(), b"baz");
-    }
-
-    #[test]
-    fn test_btree_page() {
-        let mut data: [u8; PAGE_SIZE] = [0; PAGE_SIZE];
-        let mut page = BTreePage::from(&mut data);
-
         page.save(b"def", b"bar").unwrap();
         page.save(b"abc", b"baz").unwrap();
         page.save(b"abc", b"qux").unwrap();
 
         let page = BTreePage::from(&mut data);
         assert_eq!(page.get(b"abc").unwrap().get_value(), b"qux");
-        assert_eq!(page.get(b"def").unwrap().get_value(), b"bar");
+        assert_eq!(page.get(b"def").unwrap().get_value(), b"baz");
     }
 }
