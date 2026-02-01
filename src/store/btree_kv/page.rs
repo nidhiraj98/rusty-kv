@@ -1,7 +1,6 @@
 use crate::store::btree_kv::commons::PAGE_SIZE;
 use crate::store::btree_kv::helpers::byte_ordering::cmp_le_bytes;
 use std::cmp::Ordering;
-use std::error::Error;
 use std::mem::size_of;
 // TODO: Replace unwrap() with proper error handling.
 
