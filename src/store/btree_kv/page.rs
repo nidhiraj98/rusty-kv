@@ -1,4 +1,5 @@
 use crate::store::btree_kv::commons::PAGE_SIZE;
+use crate::store::btree_kv::error::RustyKVError;
 use crate::store::btree_kv::helpers::byte_ordering::cmp_le_bytes;
 use std::cmp::Ordering;
 use std::mem::size_of;
@@ -573,7 +574,7 @@ impl<'a> BTreeBodyData<'a> {
     /// # Returns:
     /// * `Result<&[u8], String>`: Result containing the row data if found. If not, the reason.
     ///
-    pub(crate) fn get(&self, key: &[u8], header: &BTreePageHeader) -> Result<&[u8], String> {
+    pub(crate) fn get(&self, key: &[u8], header: &BTreePageHeader) -> Result<&[u8], RustyKVError> {
         match self.search(key, 0, header.get_slot_count() as usize) {
             Ok(index) => {
                 let row_offset = u16::from_le_bytes(
@@ -586,7 +587,7 @@ impl<'a> BTreeBodyData<'a> {
                 let slot_size = btree_row.get_size(self.data);
                 Ok(&self.data[row_offset..row_offset + slot_size])
             }
-            Err(index) => Err(String::from("The key doesn't exist")),
+            Err(_) => Err(RustyKVError::ItemNotFound),
         }
     }
 
@@ -605,7 +606,11 @@ impl<'a> BTreeBodyData<'a> {
     ///       worth it? It also improves the method signature. Passing the slot_map_index isn't
     ///       ideal.
     ///
-    pub(crate) fn update(&mut self, value: &[u8], slot_map_index: usize) -> Result<(), String> {
+    pub(crate) fn update(
+        &mut self,
+        value: &[u8],
+        slot_map_index: usize,
+    ) -> Result<(), RustyKVError> {
         let row_offset = u16::from_le_bytes(
             self.slot_map
                 .get_slot_map_element(slot_map_index, self.data)
@@ -619,9 +624,7 @@ impl<'a> BTreeBodyData<'a> {
         // TODO: If the new value is smaller, we can fit in the new value and update the value
         //       size in the header.
         if value_size != value.len() {
-            return Err(String::from(
-                "The existing value size doesn't match the new one",
-            ));
+            return Err(RustyKVError::InsufficientSpace);
         }
 
         // Re-Use the existing slot.
@@ -644,7 +647,7 @@ impl<'a> BTreeBodyData<'a> {
         key: &[u8],
         value: &[u8],
         slot_map_index: usize,
-    ) -> Result<(), String> {
+    ) -> Result<(), RustyKVError> {
         // Insert element in row data.
         let key_size = key.len();
         let value_size = value.len();
@@ -653,7 +656,7 @@ impl<'a> BTreeBodyData<'a> {
         // Each slot needs to store the data and also an element in the slot map.
         // TODO: Move this check to allocate_row_space
         if slot_size + SLOT_MAP_ELEMENT_SIZE > self.free_space.get_size() {
-            return Err(String::from("Not enough space to insert new slot"));
+            return Err(RustyKVError::InsufficientSpace);
         }
 
         let (new_row_start, _) = self.free_space.allocate_row_space(slot_size);
@@ -685,7 +688,7 @@ impl<'a> BTreeBodyData<'a> {
         &mut self,
         header: &mut BTreePageHeader,
         slot_map_index: usize,
-    ) -> Result<(), String> {
+    ) -> Result<(), RustyKVError> {
         // 1. Find the row offset of the entry.
         let row_offset = u16::from_le_bytes(
             self.slot_map
@@ -824,7 +827,7 @@ impl<'a> BTreePage<'a> {
     /// # Returns:
     /// * `Result<(), String>`: Void if the row is inserted. If not, the reason.
     ///
-    pub fn save(&mut self, key: &[u8], value: &[u8]) -> Result<(), String> {
+    pub fn save(&mut self, key: &[u8], value: &[u8]) -> Result<(), RustyKVError> {
         match self
             .body
             .search(key, 0, self.header.get_slot_count() as usize)
@@ -850,7 +853,7 @@ impl<'a> BTreePage<'a> {
     /// # Returns
     /// * `Result<(), String>`: Ok() if the deletion succeeded. Err(reason) otherwise.
     ///
-    pub fn delete(&mut self, key: &[u8]) -> Result<(), String> {
+    pub fn delete(&mut self, key: &[u8]) -> Result<(), RustyKVError> {
         let result = self
             .body
             .search(key, 0, self.header.get_slot_count() as usize);
