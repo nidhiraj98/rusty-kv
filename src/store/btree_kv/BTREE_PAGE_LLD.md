@@ -156,6 +156,17 @@ struct BTreeBodyData<'a> {
 3. Overwrite value data in-place
 4. Return updated row reference
 
+#### Remove ('remove' method)
+1. Search for key using binary search
+2. If key not found: Return Ok() (idempotent)                               
+3. If key found:                                                            
+   - Get row offset from slot map                                           
+   - Clear row data by zeroing bytes                                        
+   - Delete slot map entry and shift remaining entries rightward            
+   - Decrease slot count in header                                          
+   - Update free space start boundary                                       
+4. Return Ok() (successful deletion)
+
 ### 5. Row Format
 
 **Row Header** (4 bytes):
@@ -191,11 +202,16 @@ struct BTreePage<'a> {
 **Public API**:
 - `get(key)` - Retrieve value by key
 - `save(key, value)` - Insert or update key-value pair
+- `delete(key)` - Remove key-value pair from page
 
 **Save Algorithm**:
 1. Search for existing key
 2. If found: Update value in-place
 3. If not found: Insert new row and increment slot count
+
+**Delete Algorithm**:
+1. Search for existing key
+2. If found: Remove the key-value pair from the page
 
 ## Key Design Decisions
 

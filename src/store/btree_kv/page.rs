@@ -75,6 +75,16 @@ impl<'a> BTreePageHeader<'a> {
         let current_count = self.get_slot_count();
         self.set_slot_count(current_count + increase_count);
     }
+
+    ///
+    /// Decreases the slot count by a fixed amount.
+    /// # Arguments:
+    /// * `decrease_count`: The decrement to decrease the slot count by.
+    ///
+    pub fn decrease_slot_count(&mut self, decrease_count: u16) {
+        let current_count = self.get_slot_count();
+        self.set_slot_count(current_count - decrease_count);
+    }
 }
 
 #[cfg(test)]
@@ -278,6 +288,16 @@ impl BTreeRow {
     pub(crate) fn get_size(&self, data: &[u8]) -> usize {
         self.get_key_size(data) + self.get_value_size(data) + ROW_HEADER_SIZE
     }
+
+    ///
+    /// Clears all the contents in the row.
+    /// # Arguments:
+    /// * `data`: A reference to the BTree Page data.
+    ///
+    pub(crate) fn clear_row(&mut self, data: &mut [u8]) {
+        let slot_size = self.get_size(data);
+        data[self.offset..self.offset + slot_size].fill(0);
+    }
 }
 
 #[cfg(test)]
@@ -389,6 +409,33 @@ impl BTreePageSlotMap {
         assert!(slot_map_offset + SLOT_MAP_ELEMENT_SIZE <= data.len());
         &data[slot_map_offset..slot_map_offset + SLOT_MAP_ELEMENT_SIZE]
     }
+
+    ///
+    /// Deletes an entry from the slot map.
+    ///
+    /// # Arguments:
+    /// * `index`: The index of the slot map element to be deleted.
+    /// * `data`: A mutable reference to the page data.
+    /// * `free_space`: A mutable reference to the free space view.
+    ///
+    pub fn delete_slot_map_element(
+        &mut self,
+        index: usize,
+        data: &mut [u8],
+        free_space: &mut BTreePageFreeSpace,
+    ) {
+        let new_start = self.start + SLOT_MAP_ELEMENT_SIZE;
+        // 1. Shift the elements right by one index.
+        for i in (new_start..self.start + (index * SLOT_MAP_ELEMENT_SIZE)).rev() {
+            data[i + SLOT_MAP_ELEMENT_SIZE] = data[i];
+        }
+
+        // 2. Update the slot map start to the new start.
+        self.start = new_start;
+
+        // 3. Increase the free space.
+        free_space.deallocate_slot_map_space();
+    }
 }
 
 ///
@@ -444,6 +491,13 @@ impl BTreePageFreeSpace {
         let allocated_space = (self.end - SLOT_MAP_ELEMENT_SIZE, self.end);
         self.end -= SLOT_MAP_ELEMENT_SIZE;
         allocated_space
+    }
+
+    ///
+    /// Reclaims a space from slot map.
+    ///
+    pub fn deallocate_slot_map_space(&mut self) {
+        self.end += SLOT_MAP_ELEMENT_SIZE;
     }
 
     ///
@@ -619,6 +673,42 @@ impl<'a> BTreeBodyData<'a> {
     }
 
     ///
+    /// Removes a key from the BTree Page.
+    /// # Arguments:
+    /// * `header`: A reference to the Page header for this page.
+    /// * `slot_map_index`: The index of the element to delete in the slot map.
+    ///
+    /// # Returns:
+    /// * `Result<(), String>`: Void if the item was successfully deleted. Reason otherwise.
+    ///
+    pub(crate) fn remove(
+        &mut self,
+        header: &mut BTreePageHeader,
+        slot_map_index: usize,
+    ) -> Result<(), String> {
+        // 1. Find the row offset of the entry.
+        let row_offset = u16::from_le_bytes(
+            self.slot_map
+                .get_slot_map_element(slot_map_index, &self.data)
+                .try_into()
+                .unwrap(),
+        ) as usize;
+
+        // 2. Delete the entry from the data.
+        let mut btree_row = BTreeRow::from(row_offset);
+        btree_row.clear_row(self.data);
+
+        // 3. Delete the mapping in slot map.
+        self.slot_map
+            .delete_slot_map_element(slot_map_index, self.data, &mut self.free_space);
+
+        // 4. Update slot count in header.
+        header.decrease_slot_count(1);
+
+        Ok(())
+    }
+
+    ///
     /// Function to search if a key exists in the page. If the key exists, the method returns the
     /// index in slot_map to which the data is mapped. If it doesn't exist, the method returns the
     /// index at which the slot_map can map the new key.
@@ -751,6 +841,24 @@ impl<'a> BTreePage<'a> {
             }
         }
     }
+
+    ///
+    /// Deletes a key from the page if it exists.
+    /// # Arguments:
+    /// * `key`: Key to be deleted.
+    ///
+    /// # Returns
+    /// * `Result<(), String>`: Ok() if the deletion succeeded. Err(reason) otherwise.
+    ///
+    pub fn delete(&mut self, key: &[u8]) -> Result<(), String> {
+        let result = self
+            .body
+            .search(key, 0, self.header.get_slot_count() as usize);
+        if result.is_ok() {
+            return self.body.remove(&mut self.header, result.unwrap());
+        }
+        Ok(())
+    }
 }
 
 // TODO: Add more tests to increase the coverage.
@@ -769,6 +877,17 @@ mod tests {
 
         let page = BTreePage::from(&mut data);
         assert_eq!(page.get(b"abc").unwrap().get_value(), b"qux");
+        assert_eq!(page.get(b"def").unwrap().get_value(), b"bar");
+    }
+
+    #[test]
+    fn test_btree_page_delete() {
+        let mut data: [u8; PAGE_SIZE] = [0; PAGE_SIZE];
+        let mut page = BTreePage::from(&mut data);
+        page.save(b"def", b"bar").unwrap();
+        page.save(b"abc", b"baz").unwrap();
+        page.delete(b"abc").unwrap();
+        assert!(page.get(b"abc").is_none());
         assert_eq!(page.get(b"def").unwrap().get_value(), b"bar");
     }
 }
