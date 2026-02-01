@@ -2,4 +2,5 @@
 pub enum RustyKVError {
     InsufficientSpace,
     ItemNotFound,
+    UnknownError,
 }

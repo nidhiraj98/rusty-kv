@@ -621,9 +621,7 @@ impl<'a> BTreeBodyData<'a> {
         let value_size = btree_row.get_value_size(self.data);
 
         // Validate that the new value fits in the existing space.
-        // TODO: If the new value is smaller, we can fit in the new value and update the value
-        //       size in the header.
-        if value_size != value.len() {
+        if value_size > value.len() {
             return Err(RustyKVError::InsufficientSpace);
         }
 
@@ -834,7 +832,24 @@ impl<'a> BTreePage<'a> {
         {
             Ok(index) => {
                 // Key already exists. Update the value.
-                self.body.update(value, index)
+                let update_result = self.body.update(value, index);
+                match update_result {
+                    Ok(()) => Ok(()),
+                    Err(RustyKVError::InsufficientSpace) => {
+                        // Insufficient space to update in-place. Create a new entry.
+                        // 1. Delete the existing entry.
+                        let remove_result = self.body.remove(&mut self.header, index);
+                        if remove_result.is_err() {
+                            return remove_result;
+                        }
+
+                        // 2. Create a new entry.
+                        let result = self.body.insert(key, value, index);
+                        self.header.increase_slot_count(1);
+                        result
+                    }
+                    _ => Err(RustyKVError::UnknownError),
+                }
             }
             Err(index) => {
                 // Key doesn't exist. A new one needs to be created.
@@ -892,5 +907,23 @@ mod tests {
         page.delete(b"abc").unwrap();
         assert!(page.get(b"abc").is_none());
         assert_eq!(page.get(b"def").unwrap().get_value(), b"bar");
+    }
+
+    #[test]
+    fn test_btree_page_update_fits() {
+        let mut data: [u8; PAGE_SIZE] = [0; PAGE_SIZE];
+        let mut page = BTreePage::from(&mut data);
+        page.save(b"abc", b"baz").unwrap();
+        page.save(b"abc", b"qu").unwrap();
+        assert_eq!(page.get(b"abc").unwrap().get_value(), b"qu");
+    }
+
+    #[test]
+    fn test_btree_page_update_insufficient_space() {
+        let mut data: [u8; PAGE_SIZE] = [0; PAGE_SIZE];
+        let mut page = BTreePage::from(&mut data);
+        page.save(b"abc", b"baz").unwrap();
+        page.save(b"abc", b"quxz").unwrap();
+        assert_eq!(page.get(b"abc").unwrap().get_value(), b"quxz");
     }
 }
