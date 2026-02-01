@@ -152,9 +152,10 @@ struct BTreeBodyData<'a> {
 
 #### Update (`update` method)
 1. Locate existing row using slot map index
-2. Validate new value fits in existing space
-3. Overwrite value data in-place
-4. Return updated row reference
+2. Check if new value fits in existing allocated space
+3. If new value is smaller or equal: Update value in-place and return success
+4. If new value is larger: Return InsufficientSpace error
+5. Caller handles insufficient space by deleting old entry and creating new one
 
 #### Remove ('remove' method)
 1. Search for key using binary search
@@ -206,7 +207,9 @@ struct BTreePage<'a> {
 
 **Save Algorithm**:
 1. Search for existing key
-2. If found: Update value in-place
+2. If found: 
+   - Attempt in-place update if new value fits in existing space
+   - If insufficient space: delete existing entry and create new one
 3. If not found: Insert new row and increment slot count
 
 **Delete Algorithm**:
@@ -235,10 +238,10 @@ struct BTreePage<'a> {
 - **Benefits**: O(log n) search complexity
 - **Requirement**: Keys must be comparable using little-endian byte ordering
 
-### 5. In-Place Updates
-- **Rationale**: Avoids data movement for same-size value updates
-- **Benefits**: Better performance, reduced fragmentation
-- **Limitation**: New value must match existing value size exactly
+### 5. In-Place Updates vs. Delete-Insert Pattern
+- **Rationale**: Optimize for common case of same-size or smaller updates while handling larger updates gracefully
+- **Benefits**: Better performance for fitting updates, space reclamation for smaller values
+- **Implementation**: Update method only handles in-place updates; save method orchestrates delete-insert for larger values
 
 ## Memory Safety
 
@@ -261,8 +264,10 @@ struct BTreePage<'a> {
 | Operation | Time Complexity | Space Complexity |
 |-----------|----------------|------------------|
 | Search | O(log n) | O(1) |
-| Insert | O(log n) + O(k) | O(k) |
-| Update | O(log n) | O(1) |
+| Insert | O(log n) + O(k) | O(1) |
+| Update (in-place) | O(log n) | O(1) |
+| Update (delete-insert) | O(log n) + O(k) | O(1) |
+| Delete | O(log n) | O(1) |
 | Get | O(log n) | O(1) |
 
 Where:
@@ -273,16 +278,14 @@ Where:
 
 ### Current Limitations
 1. No page compaction (fragmentation after deletions)
-2. Fixed value size for updates
-3. No concurrent access support
-4. Error handling via panics instead of proper error types
+2. No concurrent access support
+3. Some error handling still uses `unwrap()` in non-critical paths
 
 ### Planned Enhancements
 1. Page compaction algorithm
-2. Variable-size value updates with space reclamation
-3. Concurrent access with page-level locking
-4. Proper error handling with custom error types
-5. Page corruption detection and recovery
+2. Concurrent access with page-level locking
+3. Complete migration from `unwrap()` to proper error handling
+4. Page corruption detection and recovery
 
 ## Testing Strategy
 
